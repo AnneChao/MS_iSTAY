@@ -21,7 +21,7 @@ plot_theme <- function(size = 12) {
           legend.key = element_blank(), strip.background = element_rect(fill = "grey85"))
 }
 
-# Appendix S1: Figure S1
+# Appendix S1: Figure S1: Stability profiles-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 S_q <- function(data, q){
   data <- as.matrix(data)
   data <- data[rowSums(data) > 0, , drop = FALSE]
@@ -96,7 +96,7 @@ plot_b <- ggplot(data_for_plot_b, aes(q, Stability, colour = Series, linetype = 
 fig_S1 <- arrangeGrob(plot_a, plot_b, ncol = 2)
 save_figure(fig_S1, "Figure_S1_Stability_profiles", 9.5, 4.2)
 
-# Appendix S3: Figure S1
+# Appendix S3: Figure S1: LDM correlation-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 ratios <- c(1, 2, 4, 5.8, 8, 16, 32)
 rho_seq <- seq(-1, 1, length.out = 500)
 ratio_colors <- c("1" = "#D55E00", "2" = "#0072B2", "4" = "#009E73",
@@ -127,7 +127,7 @@ p1 <- ggplot(plot_data, aes(rho, LDM, colour = ratio_f)) +
         legend.key.width = grid::unit(1, "cm"))
 save_figure(p1, "Figure_S3_LDM_correlation", 7.4, 5.5)
 
-# Appendix S3: Figures S2 and S3
+# Appendix S3: Figures S2 and S3: Synchrony heatmaps-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 # Equal-weight information-based stability components; q = 1 and q = 2 are retained.
 S_q_calc_equal_weight_b <- function(data, q) {
   data <- as.matrix(data)
@@ -232,7 +232,7 @@ fig_S3_S3 <- make_heatmap(heatmap_results, "q2_mean", 0.7)
 save_figure(fig_S3_S2, "Appendix_S3_Figure_S2", 12, 10)
 save_figure(fig_S3_S3, "Appendix_S3_Figure_S3", 12, 10)
 
-# Appendix S3: Figures S2 and S3
+# Appendix S3: Figures S4: Synchrony convergance (q = 2)-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 T_sim <- 50
 K_values <- seq(2, 50, 2)
 n_sim <- 1000
@@ -292,7 +292,7 @@ p_q2_Syn3 <- ggplot(plot_q2_Syn3, aes(K, Value, color = Type, linetype = Type)) 
 print(p_q2_Syn3)
 save_figure(p_q2_Syn3, "Figure_S3_S4", 12, 6)
 
-# Appendix S4: Figure S1
+# Appendix S4: Figure S1: Temporal window analysis-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 iSTAY_Multiple = function (data, order.q = c(1, 2), equal_weights = T, Alltime = TRUE, start_T = NULL, end_T = NULL)
 {
   NA_num <- sum(is.na(data))
@@ -499,7 +499,7 @@ save_figure(fig_S4d, "Figure_S4d", 9.5, 4)
 # fig_S4 <- arrangeGrob(fig_S4a, fig_S4b, fig_S4c, fig_S4d, ncol = 1)
 # save_figure(fig_S4, "Figure_S4_Combined", 9.5, 15)
 
-# Appendix S5: Figure S1
+# Appendix S5: Figure S1: Stability vs. relative biomass-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 
 iSTAY_Single = function (data, order.q = c(1, 2), Alltime = TRUE, start_T = NULL, end_T = NULL)
 {
@@ -613,6 +613,7 @@ make_s5 <- function(q) {
            size = "none")
   list(plot = plot, summary = left_join(slope_labels, ono, by = "number_of_species") |> mutate(q = q))
 }
+
 # Appendix S5: Figure S1, q = 1
 s5_q1 <- make_s5(1)
 fig_S5_q1 <- s5_q1$plot

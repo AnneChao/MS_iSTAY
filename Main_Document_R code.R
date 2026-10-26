@@ -12,7 +12,7 @@ save_pdf <- function(p, name, width, height) {
   ggplot2::ggsave(file.path(output_dir, name), plot = p, width = width, height = height, bg = "white")
 }
 
-# Stability calculations
+# Stability calculation functions-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 
 #' Calculate information-based temporal stability for a single time series.
 #'
@@ -225,7 +225,7 @@ iSTAY_Multiple = function (data, order.q = c(1, 2), equal_weights = T, Alltime =
   return(result)
 }
 
-# Shared plotting functions
+# Shared plotting functions-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 
 #' @Function fig_1a is used to plot Figure 1 (a).
 #' @param output is an object computed from function 'iSTAY_Multiple' in the package 'iStay'.
@@ -625,7 +625,7 @@ fig_3_right <- function(output) {
     theme(panel.border = element_rect(colour="black", size=1.2))
 }
 
-# ========================================================================================================== #
+# ============================================================================================================================================================================================================================================================================================================================== #
 # 
 # This code includes four parts:
 # 
@@ -636,11 +636,11 @@ fig_3_right <- function(output) {
 #
 # See "Brief guide" for details. 
 # 
-# ========================================================================================================== #
+# ============================================================================================================================================================================================================================================================================================================================== #
 
 
-# ========================================================================================================== #
-# Figure 1. Gamma, alpha and synchrony profiles for q between 0 and 2 within each plot.
+# ============================================================================================================================================================================================================================================================================================================================== #
+# Figure 1. Gamma, alpha and synchrony profiles for q between 0 and 2 within each plot.-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 
 df1 <- list(B4A14_2 = Data_Jena_76_community_populations$B4A14_B4_2,
             B1A04_4 = Data_Jena_76_community_populations$B1A04_B1_4)
@@ -673,8 +673,8 @@ row2 <- arrangeGrob( p1c, blank, ncol = 2, widths = c(8, 8) )
 g <- arrangeGrob(row1, row2, grid::nullGrob(), ncol = 1, heights = c(1, 1, 1))
 save_pdf(g, "Figure_1.pdf", 16, 20)
 
-# ========================================================================================================== #
-# Figure 2. Biodiversity–stability and biodiversity–synchrony relationships based on 76 plots.
+# ============================================================================================================================================================================================================================================================================================================================== #
+# Figure 2. Biodiversity–stability and biodiversity–synchrony relationships based on 76 plots.-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 
 split_names2 <- str_split(names(Data_Jena_76_community_populations), "_", simplify = TRUE)
 structure2 <- data.frame(
@@ -705,8 +705,8 @@ fig2_all <- arrangeGrob(
   ncol = 1)
 save_pdf(fig2_all, "Figure_2.pdf", 12, 20)
 
-# ========================================================================================================== #
-# Figure 3. Temporal effects of species richness on stability and synchrony based on 12 consecutive overlapping 10-year moving window.
+# ============================================================================================================================================================================================================================================================================================================================== #
+# Figure 3. Temporal effects of species richness on stability and synchrony based on 12 consecutive overlapping 10-year moving window.-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 
 ### Left
 
@@ -785,8 +785,8 @@ row3 <- arrangeGrob(p_e, p_f, ncol = 2, widths = c(12, 8))
 g <- arrangeGrob(row1, row2, row3, ncol = 1, heights = c(1,1,1))
 save_pdf(g, "Figure_3.pdf", 20, 18)
 
-# ========================================================================================================== #
-# Figure 4. Biodiversity–stability and biodiversity–synchrony relationships based on 20 sets
+# ============================================================================================================================================================================================================================================================================================================================== #
+# Figure 4. Biodiversity–stability and biodiversity–synchrony relationships based on 20 sets-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 
 split_names4 <- str_split(names(Data_Jena_20_metacommunities), "_", simplify = TRUE)
 structure4 <- data.frame(
