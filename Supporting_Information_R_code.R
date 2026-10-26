@@ -128,116 +128,104 @@ p1 <- ggplot(plot_data, aes(rho, LDM, colour = ratio_f)) +
 save_figure(p1, "Figure_S3_LDM_correlation", 7.4, 5.5)
 
 # Appendix S3: Figures S2 and S3
+# Equal-weight information-based stability components; q = 1 and q = 2 are retained.
 S_q_calc_equal_weight_b <- function(data, q) {
   data <- as.matrix(data)
-  rs <- rowSums(data)
-  rs[rs == 0] <- 1
-  data <- data / rs
   data <- data[rowSums(data) > 0, , drop = FALSE]
-  if (nrow(data) == 0 || ncol(data) < 2) return(list(S_beta = 0, max_S_beta = 0, S_alpha = 0, S_gamma = 0))
-  T_step <- ncol(data)
-  K <- nrow(data)
-  p_t_gamma <- colSums(data) / sum(data)
-  w <- rowSums(data) / sum(data)
-  p_i_t_alpha <- data / rowSums(data)
-  if (q != 1) {
-    I_gamma <- sum(p_t_gamma^q)^(1/(1 - q))
-    I_k <- apply(p_i_t_alpha, 1, function(x) {
-      x <- x[x > 0]
-      if (length(x) == 0) return(1)
-      sum(x^q)^(1/(1 - q))
-    })
-    I_alpha <- sum(w * I_k^(1 - q))^(1/(1 - q))
-  } else {
-    pp <- p_t_gamma[p_t_gamma > 0]
-    I_gamma <- exp(-sum(pp * log(pp + 1e-10)))
-    I_k <- apply(p_i_t_alpha, 1, function(x) {
-      x <- x[x > 0]
-      if (length(x) == 0) return(1)
-      exp(-sum(x * log(x + 1e-10)))
-    })
-    I_alpha <- exp(sum(w * log(I_k + 1e-10)))
+  T <- ncol(data); K <- nrow(data)
+  if (K == 0 || T < 2) return(list(S_beta = 0, max_S_beta = 0, S_alpha = 0, S_gamma = 0))
+  p <- data / rowSums(data)
+  w <- rep(1 / K, K)
+  p_gamma <- colMeans(p)
+  info <- function(x) {
+    x <- x[x > 0]
+    if (q == 1) exp(-sum(x * log(x))) else sum(x^q)^(1 / (1 - q))
   }
-  S_gamma <- (I_gamma - 1) / (T_step - 1)
-  S_alpha <- (I_alpha - 1) / (T_step - 1)
-  S_beta <- max(0, S_gamma - S_alpha)
-  max_S_beta <- (1 - 1/K) / (T_step - 1) + (1 - 1/K) * S_gamma
-  list(S_beta = S_beta, max_S_beta = max_S_beta, S_alpha = S_alpha, S_gamma = S_gamma)
+  I_gamma <- info(p_gamma)
+  I_k <- apply(p, 1, info)
+  I_alpha <- if (q == 1) exp(sum(w * log(I_k))) else sum(w * I_k^(1 - q))^(1 / (1 - q))
+  S_gamma <- (I_gamma - 1) / (T - 1)
+  S_alpha <- (I_alpha - 1) / (T - 1)
+  list(S_beta = max(0, S_gamma - S_alpha),
+       max_S_beta = (1 - 1 / K) * (S_gamma + 1 / (T - 1)),
+       S_alpha = S_alpha, S_gamma = S_gamma)
 }
+
 phi_LM_calc <- function(data) {
+  data <- as.matrix(data)
   data <- data[rowSums(data) > 0, , drop = FALSE]
-  variance <- apply(data, 1, var)
-  denominator <- sum(sqrt(variance))
-  if (denominator > 0) var(colSums(data)) / denominator^2 else NA_real_
+  denom <- sum(sqrt(apply(data, 1, var)))
+  if (denom > 0) var(colSums(data)) / denom^2 else NA_real_
 }
-run_synchrony_simulation <- function(n_time = 20, mu_x = 10, mu_y = 10, n_reps = 100,
-                                     sd_x_vals = c(0, 0.1, 0.5, 1, 1.5, 2, 3, 4, 5, 5.5, 6),
-                                     sd_y_vals = c(0, 0.1, 0.5, 1, 1.5, 2, 3, 4, 5, 5.5, 6),
-                                     rho_vals = c(-1, -.7, -.5, -.3, 0, .3, .5, .7, 1), seed = 10) {
-  set.seed(seed)
+
+# Simulate LDM, q = 1, and q = 2; return all three numerical results.
+run_synchrony_simulation <- function(
+    n_time = 20, mu_x = 10, mu_y = 10, n_reps = 100,
+    sd_x_vals = c(0, 0.1, 0.5, 1, 1.5, 2, 3, 4, 5, 5.5, 6),
+    sd_y_vals = c(0, 0.1, 0.5, 1, 1.5, 2, 3, 4, 5, 5.5, 6),
+    rho_vals = c(-1, -.7, -.5, -.3, 0, .3, .5, .7, 1), seed = 10) {
+  if (!is.null(seed)) set.seed(seed)
   params <- expand.grid(sd_x = sd_x_vals, sd_y = sd_y_vals, rho = rho_vals)
-  vals <- matrix(NA_real_, nrow(params), 2, dimnames = list(NULL, c("ldm", "q2")))
+  ans <- matrix(NA_real_, nrow(params), 3)
   for (i in seq_len(nrow(params))) {
     sx <- params$sd_x[i]; sy <- params$sd_y[i]; rho <- params$rho[i]
-    sigma <- matrix(c(sx^2, rho*sx*sy, rho*sx*sy, sy^2), 2, 2)
-    sims <- matrix(NA_real_, n_reps, 2)
+    sigma <- matrix(c(sx^2, rho * sx * sy, rho * sx * sy, sy^2), 2)
+    sims <- matrix(NA_real_, n_reps, 3)
     for (j in seq_len(n_reps)) {
       sims[j, ] <- tryCatch({
         valid <- matrix(numeric(0), ncol = 2)
         attempts <- 0L
         while (nrow(valid) < n_time) {
           attempts <- attempts + 1L
-          if (attempts > 1000L) stop("Unable to generate sufficient positive observations")
-          candidate <- mvtnorm::rmvnorm(n_time, mean = c(mu_x, mu_y), sigma = sigma)
-          valid <- rbind(valid, candidate[candidate[, 1] > 1e-9 & candidate[, 2] > 1e-9, , drop = FALSE])
+          if (attempts > 1000L) stop("Unable to generate positive observations")
+          z <- mvtnorm::rmvnorm(n_time, mean = c(mu_x, mu_y), sigma = sigma)
+          valid <- rbind(valid, z[z[, 1] > 1e-9 & z[, 2] > 1e-9, , drop = FALSE])
         }
         community <- t(valid[seq_len(n_time), , drop = FALSE])
-        s2 <- S_q_calc_equal_weight_b(community, 2)
-        c(phi_LM_calc(community),
-          if (s2$max_S_beta > 1e-10) 1 - s2$S_beta/s2$max_S_beta else 1)
-      }, error = function(e) rep(NA_real_, 2))
+        synchrony <- function(q) {
+          s <- S_q_calc_equal_weight_b(community, q)
+          if (s$max_S_beta > 1e-10) 1 - s$S_beta / s$max_S_beta else 1
+        }
+        c(phi_LM_calc(community), synchrony(1), synchrony(2))
+      }, error = function(e) rep(NA_real_, 3))
     }
-    vals[i, ] <- colMeans(sims, na.rm = TRUE)
-    if (sx == 0 && sy == 0) vals[i, 1] <- NA_real_
+    ans[i, ] <- colMeans(sims, na.rm = TRUE)
+    if (sx == 0 && sy == 0) ans[i, 1] <- NA_real_
   }
-  cbind(params, data.frame(ldm_mean = vals[, 1], q2_mean = vals[, 2]))
+  names(params) <- c("sd_x", "sd_y", "rho")
+  cbind(params, setNames(as.data.frame(ans), c("ldm_mean", "q1_mean", "q2_mean")))
 }
+
+# Draw a heatmap using 10 bins and the same limits as Appendix S3.
 make_heatmap <- function(data, metric, lower) {
   breaks <- seq(lower, 1, length.out = 11)
-  labels <- vapply(seq_len(10), function(i) {
-    left <- format(round(breaks[i], 2), trim = TRUE, scientific = FALSE)
-    right <- format(round(breaks[i + 1], 2), trim = TRUE, scientific = FALSE)
-    paste0("[", left, ",", right, if (i == 10) "]" else ")")
-  }, character(1))
+  labels <- vapply(seq_len(10), function(i)
+    paste0("[", format(round(breaks[i], 2), trim = TRUE), ",",
+           format(round(breaks[i + 1], 2), trim = TRUE), if (i == 10) "]" else ")"), character(1))
   colors <- rev(colorRampPalette(RColorBrewer::brewer.pal(11, "RdYlBu"))(10))
-  values <- data[[metric]]
-  index <- cut(pmax(lower, pmin(1, values)), breaks = breaks, labels = FALSE,
-               include.lowest = TRUE, right = TRUE)
+  index <- cut(pmax(lower, pmin(1, data[[metric]])), breaks = breaks,
+               include.lowest = TRUE, right = TRUE, labels = FALSE)
   df <- data |>
-    mutate(bin = factor(ifelse(is.na(index), "NA", labels[index]),
-                        levels = c("NA", rev(labels))),
+    mutate(bin = factor(ifelse(is.na(index), "NA", labels[index]), levels = c("NA", rev(labels))),
            rho_f = factor(rho, levels = unique(rho), labels = paste("ρ =", unique(rho))))
-  ggplot(df, aes(factor(sd_x, levels = unique(sd_x)),
-                 factor(sd_y, levels = unique(sd_y)), fill = bin)) +
+  ggplot(df, aes(factor(sd_x, levels = unique(sd_x)), factor(sd_y, levels = unique(sd_y)), fill = bin)) +
     geom_tile(colour = "white", linewidth = 0.5) +
     facet_wrap(~rho_f, nrow = 3) +
-    scale_fill_manual(name = "Synchrony", values = c("NA" = "grey80", setNames(colors, labels)),
-                      drop = FALSE) +
+    scale_fill_manual(name = "Synchrony", values = c("NA" = "grey80", setNames(colors, labels)), drop = FALSE) +
     guides(fill = guide_legend(title.position = "top", title.hjust = 0.5,
-                               keywidth = grid::unit(0.7, "cm"),
-                               keyheight = grid::unit(0.45, "cm"))) +
+                               keywidth = grid::unit(0.7, "cm"), keyheight = grid::unit(0.45, "cm"))) +
     labs(x = "SD of the first dataset", y = "SD of the second dataset") +
-    coord_fixed() +
-    theme_minimal(base_size = 12) +
+    coord_fixed() + theme_minimal(base_size = 12) +
     theme(axis.title = element_text(face = "bold", size = 16),
           axis.text.x = element_text(angle = 45, hjust = 1),
           strip.background = element_rect(fill = "grey90", colour = NA),
           strip.text = element_text(face = "bold", size = 13),
           panel.border = element_rect(colour = "grey80", fill = NA),
-          panel.grid = element_blank(),
-          legend.position = "right",
+          panel.grid = element_blank(), legend.position = "right",
           legend.title = element_text(face = "bold"))
 }
+
+
 heatmap_results <- run_synchrony_simulation()
 fig_S3_S2 <- make_heatmap(heatmap_results, "ldm_mean", 0)
 fig_S3_S3 <- make_heatmap(heatmap_results, "q2_mean", 0.7)
@@ -436,8 +424,8 @@ save_figure(fig_S4a, "Figure_S4a", 9.5, 4)
 save_figure(fig_S4b, "Figure_S4b", 9.5, 4)
 save_figure(fig_S4c, "Figure_S4c", 9.5, 4)
 save_figure(fig_S4d, "Figure_S4d", 9.5, 4)
-fig_S4 <- arrangeGrob(fig_S4a, fig_S4b, fig_S4c, fig_S4d, ncol = 1)
-save_figure(fig_S4, "Figure_S4_Combined", 9.5, 15)
+# fig_S4 <- arrangeGrob(fig_S4a, fig_S4b, fig_S4c, fig_S4d, ncol = 1)
+# save_figure(fig_S4, "Figure_S4_Combined", 9.5, 15)
 
 # Appendix S5: Figure S1
 data("Data_Jena_462_populations", package = "iSTAY")
@@ -448,7 +436,7 @@ Jena_tidy <- Data_Jena_462_populations |>
          plot = str_sub(sub(".*_(B[1234]A[0-9]{2})_.*", "\\1", rowname), 3, 5),
          species = str_sub(rowname, -7, -1),
          label = paste(block, plot, number_of_species, sep = "_"))
-make_s5 <- function(q, tag) {
+make_s5 <- function(q) {
   temp <- Jena_tidy |> filter(number_of_species != 1)
   year_columns <- grep("^[0-9]{4}$", names(temp), value = TRUE)
   biomass <- as.matrix(temp[, year_columns])
@@ -491,16 +479,20 @@ make_s5 <- function(q, tag) {
     coord_cartesian(ylim = c(-0.05, 1.15)) +
     facet_wrap(~number_of_species, nrow = 1,
                labeller = labeller(number_of_species = function(x) paste(x, "species"))) +
-    labs(title = paste0("q = ", q), tag = tag, x = "Relative biomass", y = "Stability") +
+    labs(title = paste0("q = ", q), x = "Relative biomass", y = "Stability") +
     plot_theme(11) + theme(plot.tag.position = "topleft", panel.spacing = grid::unit(0.5, "cm")) +
     guides(colour = guide_legend(override.aes = list(size = c(1.2, 4), alpha = c(1, 0.6))),
            size = "none")
   list(plot = plot, summary = left_join(slope_labels, ono, by = "number_of_species") |> mutate(q = q))
 }
-s5_q1 <- make_s5(1, "(a)")
-s5_q2 <- make_s5(2, "(b)")
-fig_S5 <- arrangeGrob(s5_q1$plot, s5_q2$plot, ncol = 1)
-grid::grid.newpage(); grid::grid.draw(fig_S5)
-save_figure(fig_S5, "Figure_S5_Relative_biomass", 10.5, 9.5)
-# write.csv(bind_rows(s5_q1$summary, s5_q2$summary),
-#           file.path(output_dir, "Figure_S5_Slopes.csv"), row.names = FALSE)
+# Appendix S5: Figure S1, q = 1
+s5_q1 <- make_s5(1)
+fig_S5_q1 <- s5_q1$plot
+print(fig_S5_q1)
+save_figure(fig_S5_q1, "Figure_S5_q1", 10.5, 4.5)
+
+# Appendix S5: Figure S1, q = 2
+s5_q2 <- make_s5(2)
+fig_S5_q2 <- s5_q2$plot
+print(fig_S5_q2)
+save_figure(fig_S5_q2, "Figure_S5_q2", 10.5, 4.5)
