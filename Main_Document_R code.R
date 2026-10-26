@@ -2,9 +2,10 @@ library(tidyverse)
 library(lmerTest)
 library(gridExtra)
 library(ggpubr)
-library(iSTAY)
-data("Data_Jena_20_metacommunities")
-data("Data_Jena_76_community_populations")
+
+load("data/Data_Jena_76_community_populations.rda")
+load("data/Data_Jena_462_populations.rda")
+
 output_dir <- "figures"
 dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 save_pdf <- function(p, name, width, height) {

@@ -1,9 +1,9 @@
 library(tidyverse)
 library(gridExtra)
-library(iSTAY)
 library(lmerTest)
 library(mvtnorm)
 library(RColorBrewer)
+
 output_dir <- "figures"
 dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
 save_figure <- function(p, name, width, height) {
@@ -232,9 +232,68 @@ fig_S3_S3 <- make_heatmap(heatmap_results, "q2_mean", 0.7)
 save_figure(fig_S3_S2, "Appendix_S3_Figure_S2", 12, 10)
 save_figure(fig_S3_S3, "Appendix_S3_Figure_S3", 12, 10)
 
+# Appendix S3: Figures S2 and S3
+T_sim <- 50
+K_values <- seq(2, 50, 2)
+n_sim <- 1000
+
+generate_data <- function(K, T_sim) {
+  list(Gamma = matrix(rgamma(K*T_sim, shape = 0.25, scale = 4), K, T_sim),
+       Exponential = matrix(rexp(K*T_sim), K, T_sim),
+       `Log-normal` = matrix(rlnorm(K*T_sim), K, T_sim),
+       Uniform = matrix(runif(K*T_sim), K, T_sim))
+}
+
+calc_Syn3 <- function(Z) {
+  K <- nrow(Z)
+  P <- Z / rowSums(Z)
+  D_alpha <- 1 / mean(rowSums(P^2))
+  D_gamma <- 1 / sum(colMeans(P)^2)
+  D_joint <- 1 / sum((P/K)^2)
+  1 - (D_gamma - D_alpha) / (D_gamma - D_alpha*D_gamma/D_joint)
+}
+
+CV <- c(Gamma = 2, Exponential = 1, `Log-normal` = sqrt(exp(1)-1), Uniform = sqrt(1/3))
+summary_q2 <- map_dfr(K_values, function(K) {
+  sims <- replicate(n_sim, lapply(generate_data(K, T_sim), calc_Syn3), simplify = FALSE)
+  tibble(Distribution = names(CV), K = K,
+         Syn3_mean = map_dbl(names(CV), ~mean(vapply(sims, function(x) x[[.x]], numeric(1)))),
+         Syn3_theory = 1 - ((1-1/T_sim)*CV^2)/(1+(1-1/T_sim)*CV^2))
+})
+
+dist_order <- c("Uniform", "Exponential", "Log-normal", "Gamma")
+dist_labels <- c(Uniform = "Uniform (0,1)", Exponential = "Exponential (1)",
+                 `Log-normal` = "Lognormal (0,1)", Gamma = "Gamma (0.25,4)")
+plot_q2_Syn3 <- summary_q2 |>
+  pivot_longer(c(Syn3_mean, Syn3_theory), names_to = "Type", values_to = "Value") |>
+  mutate(Type = recode(Type, Syn3_mean = "Simulation", Syn3_theory = "Theory")) |>
+  bind_rows(summary_q2 |> distinct(Distribution, K) |>
+              mutate(Type = "phi_LM", Value = 1/K)) |>
+  mutate(Distribution = factor(Distribution, levels = dist_order))
+
+p_q2_Syn3 <- ggplot(plot_q2_Syn3, aes(K, Value, color = Type, linetype = Type)) +
+  geom_line(linewidth = 1.5) +
+  facet_wrap(~Distribution, nrow = 1, labeller = labeller(Distribution = dist_labels)) +
+  scale_color_manual(breaks = c("Simulation", "Theory", "phi_LM"),
+                     values = c(Simulation = "black", Theory = "red", phi_LM = "blue"),
+                     labels = c("Simulated mean", "Limiting value", "ϕ<sub>LM</sub> = 1/<i>K</i>")) +
+  scale_linetype_manual(breaks = c("Simulation", "Theory", "phi_LM"),
+                        values = c(Simulation = "solid", Theory = "dashed", phi_LM = "dotdash"),
+                        labels = c("Simulated mean", "Limiting value", "ϕ<sub>LM</sub> = 1/<i>K</i>")) +
+  labs(x = "Number of datasets (K)", y = "Synchrony", color = NULL, linetype = NULL) +
+  theme_bw(base_size = 20) +
+  theme(axis.text = element_text(size = 18),
+        axis.title = element_text(size = 22, face = "bold"),
+        strip.text = element_text(size = 18, face = "bold"),
+        legend.text = ggtext::element_markdown(size = 17, family = "Cambria Math"),
+        legend.position = "bottom", legend.key.width = grid::unit(1.8, "cm"),
+        panel.spacing = grid::unit(0.12, "cm"))
+
+print(p_q2_Syn3)
+save_figure(p_q2_Syn3, "Figure_S3_S4", 12, 6)
+
 # Appendix S4: Figure S1
-iSTAY_Multiple = function (data, order.q = c(1, 2), Alltime = TRUE, start_T = NULL,
-                           end_T = NULL)
+iSTAY_Multiple = function (data, order.q = c(1, 2), equal_weights = T, Alltime = TRUE, start_T = NULL, end_T = NULL)
 {
   NA_num <- sum(is.na(data))
   if (NA_num != 0) {
@@ -252,46 +311,62 @@ iSTAY_Multiple = function (data, order.q = c(1, 2), Alltime = TRUE, start_T = NU
       stop("Starting and ending time need to be a number, and ending time needs larger than starting time.")
     }
   }
-  Stabillity_Multiple <- function(ZZ, q) {
-    K <- ncol(ZZ)
+  Stabillity_Multiple <- function(ZZ, q){
     z_iplus <- apply(ZZ, 1, sum)
     if (length(which(z_iplus == 0)) != 0) {
       ZZ <- ZZ[-which(z_iplus == 0), ]
     }
     ZZ <- as.matrix(ZZ)
     z_iplus <- apply(ZZ, 1, sum)
-    ww <- 1/nrow(ZZ)
-    if (nrow(ZZ) != 1) p_i <- as.data.frame(apply(ZZ, 2, function(w) w/z_iplus)) else p_i = matrix(apply(ZZ, 2, function(w) w/z_iplus), nrow = 1)
-    ZZ = p_i
-    z_plusk <- apply(ZZ, 2, sum)
-    z_plusplus <- sum(ZZ)
-    p_pool <- z_plusk/z_plusplus
-    if (q == 1) {
-      p_i_new <- p_i
-      p_pool_new <- p_pool
-      alpha <- ( exp(-sum(ww * p_i_new[p_i_new > 0] * log(p_i_new[p_i_new > 0])) ) - 1)/(K - 1)
-      gamma <- (exp(-sum(p_pool[p_pool > 0] * log(p_pool_new[p_pool_new >
-                                                               0]))) - 1)/(K - 1)
+    Times <- ncol(ZZ); K <- nrow(ZZ)
+    p_i <- as.data.frame(apply(ZZ, 2, function(w) w / z_iplus))
+    if(dim(p_i)[2] == 1) p_i = t(p_i)
+    if(equal_weights){
+      p_pool <-  colMeans(p_i)
+      ww <- rep(1/K,K)
+    }else{
+      z_plusk <- apply(ZZ, 2, sum)
+      ww <- z_iplus/sum(ZZ)
+      p_pool <- ww %*% as.matrix(p_i)
     }
-    else {
-      alpha <- (sum(ww * (p_i)^q)^(1/(1 - q)) - 1)/(K - 1)
-      gamma <- (sum(p_pool^q)^(1/(1 - q)) - 1)/(K - 1)
+    if(q == 1){
+      alpha <- (exp(sum(ww * apply(p_i, 1, function(p) -sum(p[p > 0] * log(p[p > 0]))))) - 1)/(Times - 1)
+      gamma <- (exp(-sum(p_pool[p_pool > 0] * log(p_pool[p_pool > 0]))) - 1)/(Times - 1)
+    }else{
+      alpha <- (sum(ww * rowSums(p_i^q))^(1/(1-q)) - 1)/(Times - 1)
+      gamma <- (sum(p_pool^q)^(1/(1 - q)) - 1)/(Times - 1)
     }
-    return(c(gamma, alpha, (gamma/alpha), (gamma - alpha)))
+    return( c(gamma, alpha, (gamma/alpha), (gamma - alpha)) )
   }
-  Synchrony <- function(ZZ, q) {
+  Synchrony <- function(ZZ, q){
     z_iplus <- apply(ZZ, 1, sum)
     if (length(which(z_iplus == 0)) != 0) {
       ZZ <- ZZ[-which(z_iplus == 0), ]
     }
     ZZ <- as.matrix(ZZ)
-    if(sum(rowSums(ZZ)>0)!=1  ){
-      K = nrow(ZZ)
-      Time = ncol(ZZ)
-      beta = Stabillity_Multiple(ZZ,q)[4]
-      gamma = Stabillity_Multiple(ZZ,q)[1]
-      beta_max = (1 - 1/K)/(Time - 1)+(1 - 1/K)*gamma
-      1 - beta/beta_max
+    Times <- ncol(ZZ); K <- nrow(ZZ)
+    z_iplus <- apply(ZZ, 1, sum)
+    gamma_diversity = Stabillity_Multiple(ZZ,q)[1] * (Times - 1) + 1
+    alpha_diversity = Stabillity_Multiple(ZZ,q)[2] * (Times - 1) + 1
+    if(sum(rowSums(ZZ)>0)!=1){
+      if(dim(ZZ)[1] > dim(ZZ)[2]){
+        1 - (1 - alpha_diversity/gamma_diversity)/(1 - 1/gamma_diversity)
+      }else{
+        p_i <- as.data.frame(apply(ZZ, 2, function(w) w / z_iplus))
+        if(equal_weights){
+          ww <- rep(1/K, K)
+          p_joint <- diag(ww, K) %*% as.matrix(p_i)
+        }else{
+          ww <- z_iplus/sum(ZZ)
+          p_joint <- diag(ww, K) %*% as.matrix(p_i)
+        }
+        if(q == 1){
+          joint_diversity <- exp(-sum(p_joint[p_joint > 0] * log(p_joint[p_joint > 0])) )
+        }else{
+          joint_diversity <- sum((p_joint)^q)^(1/(1 - q))
+        }
+        1 - (1 - alpha_diversity/gamma_diversity)/(1 - alpha_diversity/joint_diversity)
+      }
     }else{
       1
     }
@@ -299,8 +374,7 @@ iSTAY_Multiple = function (data, order.q = c(1, 2), Alltime = TRUE, start_T = NU
   if (is.data.frame(data) | is.matrix(data)) {
     if (Alltime == TRUE) {
       subdata <- data
-    }
-    else {
+    }else {
       subdata <- data[, c(start_T:end_T)]
     }
     out <- as.matrix(sapply(order.q, function(qq) c(Stabillity_Multiple(subdata,
@@ -311,14 +385,12 @@ iSTAY_Multiple = function (data, order.q = c(1, 2), Alltime = TRUE, start_T = NU
                                "Stab_Beta_multiplicative", "Stab_Beta_additive",
                                "Synchrony")
     result <- result[, -5]
-  }
-  else {
+  }else {
     out <- lapply(order.q, function(qq) {
       cal <- lapply(data, function(ZZ) {
-        if (Alltime == T) {
+        if (Alltime == TRUE) {
           subZZ <- ZZ
-        }
-        else {
+        }else {
           subZZ <- ZZ[, c(start_T:end_T)]
         }
         outout <- c(Stabillity_Multiple(subZZ, q = qq),
@@ -340,9 +412,9 @@ iSTAY_Multiple = function (data, order.q = c(1, 2), Alltime = TRUE, start_T = NU
                         "Beta", "Synchrony")
   return(result)
 }
-data("Data_Jena_76_community_populations", package = "iSTAY")
+load("data/Data_Jena_76_community_populations.rda")
 fit_jena <- function(data, metric, block_data) {
-  computed <- iSTAY_Multiple(data, order.q = c(0.5, 1, 2))
+  computed <- iSTAY_Multiple(data, order.q = c(0.5, 1, 2), equal_weights = T)
   stopifnot(nrow(computed) == 3 * nrow(block_data))
   full <- data.frame(block = rep(block_data$block, 3),
                      sowndiv = rep(block_data$sowndiv, 3),
@@ -428,7 +500,63 @@ save_figure(fig_S4d, "Figure_S4d", 9.5, 4)
 # save_figure(fig_S4, "Figure_S4_Combined", 9.5, 15)
 
 # Appendix S5: Figure S1
-data("Data_Jena_462_populations", package = "iSTAY")
+
+iSTAY_Single = function (data, order.q = c(1, 2), Alltime = TRUE, start_T = NULL, end_T = NULL)
+{
+  if (is.vector(data)) {
+    data <- matrix(data, nrow = 1)
+  }
+  NA_num <- sum(is.na(data))
+  if (NA_num != 0) {
+    stop("There are some NA in the data.")
+  }
+  if (sum(which(order.q <= 0))) {
+    stop("Order q need larger than 0.")
+  }
+  if (Alltime != TRUE) {
+    if (is.null(start_T) | is.null(end_T)) {
+      stop("Need to set the length of time series for calculating.")
+    }
+    if ((start_T >= end_T) | length(start_T) != 1 | length(end_T) !=
+        1) {
+      stop("Starting and ending time need to be a number, and ending time needs larger than starting time.")
+    }
+  }
+  stability <- function(vector, q) {
+    if (sum(vector != 0) == 0) {
+      out <- NA
+    }
+    else {
+      K <- length(vector)
+      if (q == 1) {
+        H <- sum((vector[vector > 0]/sum(vector)) *
+                   log(vector[vector > 0]/sum(vector))) * (-1)
+        out <- (exp(H) - 1)/(K - 1)
+      }
+      else {
+        up <- 1 - ((sum((vector[vector > 0]/sum(vector))^q))^(1/(1 - q)))
+        out <- up/(1 - K)
+      }
+    }
+    return(out)
+  }
+  if (Alltime == TRUE) {
+    stab <- as.matrix(apply(data, 1, function(vec) sapply(order.q,
+                                                          function(qq) stability(vec, q = qq))))
+  }
+  else {
+    subdata <- data[, c(start_T:end_T)]
+    stab <- as.matrix(apply(subdata, 1, function(vec) sapply(order.q,
+                                                             function(qq) stability(vec, q = qq))))
+  }
+  result <- data.frame(Assemblage = rep(rownames(as.data.frame(data)),
+                                        length(order.q)), Order_q = rep(order.q, each = nrow(data)),
+                       Stability = as.vector(t(stab)))
+  colnames(result)[1] <- c("Dataset")
+  return(result)
+}
+
+load("data/Data_Jena_462_populations.rda")
 Jena_tidy <- Data_Jena_462_populations |>
   mutate(rowname = row.names(Data_Jena_462_populations),
          block = str_sub(rowname, 1, 2),
@@ -441,7 +569,7 @@ make_s5 <- function(q) {
   year_columns <- grep("^[0-9]{4}$", names(temp), value = TRUE)
   biomass <- as.matrix(temp[, year_columns])
   temp$total_biomass <- rowSums(biomass)
-  single_result <- iSTAY::iSTAY_Single(biomass, order.q = q)
+  single_result <- iSTAY_Single(biomass, order.q = q)
   stability_column <- intersect(c("Stab", "Stability"), names(single_result))[1]
   if (is.na(stability_column)) stop("Cannot identify iSTAY single stability column.")
   temp$Stab <- single_result[[stability_column]]
